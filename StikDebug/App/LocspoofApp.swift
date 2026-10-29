@@ -1,7 +1,7 @@
 import SwiftUI
 
 @main
-struct RouteSimApp: App {
+struct LocspoofApp: App {
     @Environment(\.scenePhase) private var scenePhase
     @State private var shouldAttemptTunnelReconnect = false
 
@@ -12,6 +12,12 @@ struct RouteSimApp: App {
     var body: some Scene {
         WindowGroup {
             RootView()
+                .tint(Theme.accent)
+                .onOpenURL { url in
+                    // locspoof:// links carry nothing yet; files are the real input.
+                    guard url.isFileURL else { return }
+                    AppModel.shared.open(url)
+                }
                 .task {
                     await downloadMissingDeveloperDiskImageFiles()
                 }
@@ -28,7 +34,9 @@ struct RouteSimApp: App {
         case .active:
             if shouldAttemptTunnelReconnect {
                 shouldAttemptTunnelReconnect = false
-                startTunnelInBackground(showErrorUI: false)
+                if !TunnelManager.shared.isConnected {
+                    startTunnelInBackground(showErrorUI: false)
+                }
             }
         default:
             break
@@ -41,8 +49,8 @@ struct RouteSimApp: App {
         } catch {
             await MainActor.run {
                 showAlert(
-                    title: "Setup Error",
-                    message: "Could not download developer disk image: \(error.localizedDescription)",
+                    title: "Couldn't download the developer disk image",
+                    message: "locspoof needs it once to turn on location simulation. Connect to the internet and reopen the app.\n\nDetails: \(error.localizedDescription)",
                     showOk: true
                 )
             }

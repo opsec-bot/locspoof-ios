@@ -453,10 +453,10 @@
 				INFOPLIST_FILE = StikDebug/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = RouteSim;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "RouteSim needs access to devices on your local network to connect to the LocalDevVPN tunnel.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RouteSim uses location to keep the simulation running in the background.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RouteSim uses location to keep the simulation running in the background.";
+				INFOPLIST_KEY_CFBundleDisplayName = locspoof;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "locspoof connects to your iPhone's developer services through LocalDevVPN.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "locspoof uses location to keep the simulation running while the screen is locked.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "locspoof uses location to keep the simulation running while the screen is locked.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -476,7 +476,7 @@
 					"$(PROJECT_DIR)/StikDebug/idevice",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 2.0.0;
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-force_load",
@@ -489,7 +489,7 @@
 					"-Xlinker",
 					"dynamic_lookup",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.stik.routesim;
+				PRODUCT_BUNDLE_IDENTIFIER = app.locspoof.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;
@@ -528,10 +528,10 @@
 				INFOPLIST_FILE = StikDebug/Info.plist;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = RouteSim;
-				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "RouteSim needs access to devices on your local network to connect to the LocalDevVPN tunnel.";
-				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "RouteSim uses location to keep the simulation running in the background.";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "RouteSim uses location to keep the simulation running in the background.";
+				INFOPLIST_KEY_CFBundleDisplayName = locspoof;
+				INFOPLIST_KEY_NSLocalNetworkUsageDescription = "locspoof connects to your iPhone's developer services through LocalDevVPN.";
+				INFOPLIST_KEY_NSLocationAlwaysAndWhenInUseUsageDescription = "locspoof uses location to keep the simulation running while the screen is locked.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "locspoof uses location to keep the simulation running while the screen is locked.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -551,7 +551,7 @@
 					"$(PROJECT_DIR)/StikDebug/idevice",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 15.1;
-				MARKETING_VERSION = 1.0.0;
+				MARKETING_VERSION = 2.0.0;
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
 					"$(inherited)",
 					"-force_load",
@@ -564,7 +564,7 @@
 					"-Xlinker",
 					"dynamic_lookup",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.stik.routesim;
+				PRODUCT_BUNDLE_IDENTIFIER = app.locspoof.ios;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = auto;

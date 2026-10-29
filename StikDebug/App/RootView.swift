@@ -1,40 +1,47 @@
 import SwiftUI
 
 struct RootView: View {
+    @StateObject private var app = AppModel.shared
     @StateObject private var tunnelManager = TunnelManager.shared
     @AppStorage("hasCompletedOnboarding") private var hasCompletedOnboarding = false
 
     var body: some View {
         if hasCompletedOnboarding {
             mainTabs
+                .onAppear {
+                    if !tunnelManager.isConnected {
+                        startTunnelInBackground(showErrorUI: false)
+                    }
+                }
         } else {
             OnboardingView {
                 hasCompletedOnboarding = true
+                startTunnelInBackground(showErrorUI: false)
             }
         }
     }
 
     private var mainTabs: some View {
-        TabView {
-            NavigationStack {
-                SimulateView()
-            }
-            .tabItem {
-                Label("Simulate", systemImage: "location.fill")
-            }
+        TabView(selection: $app.tab) {
+            MapScreen(vm: app.map)
+                .tabItem { Label("Map", systemImage: "location.fill") }
+                .tag(AppModel.Tab.map)
 
             NavigationStack {
-                LibraryView()
+                RouteLibraryView()
             }
-            .tabItem {
-                Label("Library", systemImage: "map")
-            }
+            .tabItem { Label("Routes", systemImage: "point.topleft.down.to.point.bottomright.curvepath.fill") }
+            .tag(AppModel.Tab.library)
 
             NavigationStack {
-                RouteSimSettingsView()
+                SettingsView()
             }
-            .tabItem {
-                Label("Settings", systemImage: "gearshape.fill")
+            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            .tag(AppModel.Tab.settings)
+        }
+        .sheet(isPresented: $app.showDoctor) {
+            NavigationStack {
+                DoctorView()
             }
         }
     }
