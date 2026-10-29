@@ -69,7 +69,7 @@ final class JITEnableContext {
         }
 
         do {
-            let newTunnel = try createTunnel(hostname: "RouteSim")
+            let newTunnel = try createTunnel(hostname: "locspoof")
             if let old = handshake { rsd_handshake_free(old) }
             if let old = adapter   { adapter_free(old) }
             adapter  = newTunnel.adapter
@@ -78,6 +78,18 @@ final class JITEnableContext {
             finalError = e
             throw e
         }
+    }
+
+    /// Drops the current tunnel so the next call builds a fresh one, for example
+    /// after a new pairing file is imported or the port changed.
+    func reset() {
+        tunnelLock.lock()
+        defer { tunnelLock.unlock() }
+        guard !tunnelConnecting else { return }
+        if let old = handshake { rsd_handshake_free(old) }
+        if let old = adapter { adapter_free(old) }
+        handshake = nil
+        adapter = nil
     }
 
     func ensureTunnel() throws {
@@ -180,7 +192,7 @@ final class JITEnableContext {
 
         var addr = sockaddr_in()
         addr.sin_family = sa_family_t(AF_INET)
-        addr.sin_port = in_port_t(49152).bigEndian
+        addr.sin_port = in_port_t(DeviceConnectionContext.remotePairingPort).bigEndian
 
         let deviceIP = DeviceConnectionContext.targetIPAddress
         guard deviceIP.withCString({ inet_pton(AF_INET, $0, &addr.sin_addr) }) == 1 else {
@@ -240,7 +252,7 @@ final class JITEnableContext {
     }
 
     private func makeError(_ message: String, code: Int = -1) -> NSError {
-        NSError(domain: "RouteSim", code: code, userInfo: [NSLocalizedDescriptionKey: message])
+        NSError(domain: "locspoof", code: code, userInfo: [NSLocalizedDescriptionKey: message])
     }
 
     private func makeFFIError(_ ptr: UnsafeMutablePointer<IdeviceFfiError>?, fallback: String) -> NSError {

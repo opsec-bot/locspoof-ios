@@ -22,6 +22,8 @@ private enum LocationSimulationState {
     static var handshake: OpaquePointer?
     static var remoteServer: OpaquePointer?
     static var locationSimulation: OpaquePointer?
+    /// Message and code of the last idevice error, for the error explainer.
+    static var lastError: (code: Int, message: String)?
 
     static func cleanup() {
         if let locationSimulation {
@@ -46,7 +48,7 @@ private enum LocationSimulationState {
 // MARK: - Serial dispatch queue (all C bridge calls must be on this queue)
 
 enum LocationSimulationCommandQueue {
-    static let shared = DispatchQueue(label: "com.stik.routesim.location-sim", qos: .userInitiated)
+    static let shared = DispatchQueue(label: "app.locspoof.location-sim", qos: .userInitiated)
 }
 
 // MARK: - Core injection function
@@ -66,10 +68,12 @@ func simulate_location(
     _ longitude: Double,
     _ pairingFile: String
 ) -> Int32 {
+    LocationSimulationState.lastError = nil
+
     // Fast path: reuse cached session
     if let locationSimulation = LocationSimulationState.locationSimulation {
         if let ffiError = location_simulation_set(locationSimulation, latitude, longitude) {
-            idevice_error_free(ffiError)
+            recordError(ffiError)
             LocationSimulationState.cleanup()
             // fall through to slow path (reconnect)
         } else {
@@ -80,7 +84,7 @@ func simulate_location(
     // Slow path: build a fresh RSD tunnel
     var address = sockaddr_in()
     address.sin_family = sa_family_t(AF_INET)
-    address.sin_port = in_port_t(49152).bigEndian
+    address.sin_port = in_port_t(DeviceConnectionContext.remotePairingPort).bigEndian
 
     let inetResult = deviceIP.withCString { inet_pton(AF_INET, $0, &address.sin_addr) }
     guard inetResult == 1 else {
@@ -89,7 +93,7 @@ func simulate_location(
 
     var pairingHandle: OpaquePointer?
     if let pairingError = pairingFile.withCString({ rp_pairing_file_read($0, &pairingHandle) }) {
-        idevice_error_free(pairingError)
+        recordError(pairingError)
         return LocationSimulationStatus.pairingRead
     }
     guard let pairingHandle else {
@@ -102,7 +106,7 @@ func simulate_location(
             tunnel_create_rppairing(
                 $0,
                 socklen_t(MemoryLayout<sockaddr_in>.stride),
-                "RouteSimLocation",
+                "locspoofLocation",
                 pairingHandle,
                 nil,
                 nil,
@@ -112,7 +116,7 @@ func simulate_location(
         }
     }
     if let providerError {
-        idevice_error_free(providerError)
+        recordError(providerError)
         LocationSimulationState.cleanup()
         return LocationSimulationStatus.providerCreate
     }
@@ -123,7 +127,7 @@ func simulate_location(
         &LocationSimulationState.remoteServer
     )
     if let remoteServerError {
-        idevice_error_free(remoteServerError)
+        recordError(remoteServerError)
         LocationSimulationState.cleanup()
         return LocationSimulationStatus.remoteServer
     }
@@ -133,7 +137,7 @@ func simulate_location(
         &LocationSimulationState.locationSimulation
     )
     if let locationSimulationError {
-        idevice_error_free(locationSimulationError)
+        recordError(locationSimulationError)
         LocationSimulationState.cleanup()
         return LocationSimulationStatus.locationSimulation
     }
@@ -146,12 +150,29 @@ func simulate_location(
         longitude
     )
     if let locationSetError {
-        idevice_error_free(locationSetError)
+        recordError(locationSetError)
         LocationSimulationState.cleanup()
         return LocationSimulationStatus.locationSet
     }
 
     return LocationSimulationStatus.ok
+}
+
+/// Drops the cached session, so the next call reconnects from scratch.
+/// Must run on LocationSimulationCommandQueue.
+func reset_location_simulation() {
+    LocationSimulationState.cleanup()
+}
+
+/// Message of the last failure, if any. Must run on LocationSimulationCommandQueue.
+func last_location_simulation_error() -> (code: Int, message: String)? {
+    LocationSimulationState.lastError
+}
+
+private func recordError(_ error: UnsafeMutablePointer<IdeviceFfiError>) {
+    let message = error.pointee.message.flatMap { String(validatingUTF8: $0) } ?? "Unknown error"
+    LocationSimulationState.lastError = (Int(error.pointee.code), message)
+    idevice_error_free(error)
 }
 
 // MARK: - Clear (stop spoofing, return device to real GPS)
@@ -163,7 +184,7 @@ func clear_simulated_location() -> Int32 {
     let ffiError = location_simulation_clear(locationSimulation)
     LocationSimulationState.cleanup()
     if let ffiError {
-        idevice_error_free(ffiError)
+        recordError(ffiError)
         return LocationSimulationStatus.locationClear
     }
     return LocationSimulationStatus.ok
