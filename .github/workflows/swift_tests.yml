@@ -1,10 +1,7 @@
 name: Swift Tests
 
+# Manual only. Run from the Actions tab when you want the unit tests.
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
   workflow_dispatch:
 
 permissions:

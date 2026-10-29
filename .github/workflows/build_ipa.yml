@@ -1,10 +1,10 @@
-# Build an unsigned Debug IPA for RouteSim (display name) from the StikDebug Xcode target.
+# Build an unsigned Debug IPA for locspoof from the StikDebug Xcode target.
 #
 # Why scheme "StikDebug"?
 #   Xcode project/target/scheme kept as StikDebug for CI stability after the fork.
-#   CFBundleDisplayName is RouteSim; bundle ID is com.stik.routesim.
+#   CFBundleDisplayName is locspoof; bundle ID is app.locspoof.ios.
 #
-# Output artifact: RouteSim-Debug.ipa (sideload via SideStore / AltStore)
+# Output artifact: locspoof-Debug.ipa (sign with FlareStore, SideStore or AltStore)
 #
 # Prerequisites in repo:
 #   - StikDebug/idevice/libidevice_ffi.a must be committed (~97 MB)
@@ -14,13 +14,12 @@ name: Build Debug IPA
 
 on:
   push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+    branches: [main, locspoof-app]
+    paths: ['StikDebug/**', 'StikDebug.xcodeproj/**', '.github/workflows/build_ipa.yml']
   workflow_dispatch:
 
 concurrency:
-  group: routesim-ipa-${{ github.ref }}
+  group: locspoof-ipa-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -31,16 +30,16 @@ env:
   SCHEME: StikDebug
   CONFIGURATION: Debug
   DEPLOYMENT_TARGET: "17.4"
-  IPA_NAME: RouteSim-Debug.ipa
-  BUNDLE_ID: com.stik.routesim
-  DISPLAY_NAME: RouteSim
+  IPA_NAME: locspoof-Debug.ipa
+  BUNDLE_ID: app.locspoof.ios
+  DISPLAY_NAME: locspoof
   UPLOAD_IPA: ${{ vars.UPLOAD_IPA || 'true' }}
 
 jobs:
   build:
-    name: Build RouteSim IPA
+    name: Build locspoof IPA
     runs-on: macos-26
-    timeout-minutes: 45
+    timeout-minutes: 25
 
     steps:
       - name: Checkout repository
@@ -53,30 +52,10 @@ jobs:
         with:
           xcode-version: "26.6"
 
-      - name: Verify Xcode and iOS SDK
-        run: |
-          set -euo pipefail
-          echo "=== Xcode ==="
-          xcodebuild -version
-      
-          echo "=== SDKs ==="
-          xcodebuild -showsdks
-      
-          echo "=== Developer Directory ==="
-          xcode-select -p
-      
-          test -d "$(xcrun --sdk iphoneos --show-sdk-path)" || {
-            echo "::error::iPhoneOS SDK is not available"
-            exit 1
-          }
-      
-          echo "=== iPhoneOS SDK ==="
-          xcrun --sdk iphoneos --show-sdk-path
-
       - name: Preflight - verify layout and FFI library
         run: |
           set -euo pipefail
-          echo "=== RouteSim source layout ==="
+          echo "=== locspoof source layout ==="
           for dir in App Tunnel Simulation Routes Features Services Support Core; do
             test -d "StikDebug/${dir}" || { echo "::error::Missing StikDebug/${dir}"; exit 1; }
             echo "  OK  StikDebug/${dir}/"
@@ -99,7 +78,7 @@ jobs:
       - name: Archive (unsigned Debug, iphoneos)
         run: |
           set -euo pipefail
-          xcodebuild clean archive \
+          xcodebuild archive \
             -project "${{ env.PROJECT }}" \
             -scheme "${{ env.SCHEME }}" \
             -configuration "${{ env.CONFIGURATION }}" \
@@ -110,6 +89,8 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             SWIFT_OPTIMIZATION_LEVEL="-Onone" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            DEBUG_INFORMATION_FORMAT=dwarf \
             IPHONEOS_DEPLOYMENT_TARGET="${{ env.DEPLOYMENT_TARGET }}"
           test -d build/StikDebug.xcarchive/Products/Applications/StikDebug.app
 
@@ -140,14 +121,14 @@ jobs:
         with:
           name: ${{ env.IPA_NAME }}
           path: ${{ env.IPA_NAME }}
-          retention-days: 90
+          retention-days: 14
           if-no-files-found: error
 
       - name: Job summary
         if: always()
         run: |
           {
-            echo "## RouteSim CI"
+            echo "## locspoof CI"
             echo ""
             if [ -f "${{ env.IPA_NAME }}" ]; then
               echo "Built **${{ env.IPA_NAME }}** (unsigned Debug)"

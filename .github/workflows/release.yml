@@ -1,10 +1,10 @@
-# Build RouteSim IPA and publish a GitHub Release when a version tag is pushed.
+# Build locspoof IPA and publish a GitHub Release when a version tag is pushed.
 #
 # Usage:
 #   git tag v1.0.0
 #   git push origin v1.0.0
 #
-# Attachments: RouteSim-Debug.ipa (unsigned Debug, sideload via SideStore / AltStore)
+# Attachments: locspoof-Debug.ipa (unsigned Debug, sideload via SideStore / AltStore)
 
 name: Release
 
@@ -21,9 +21,9 @@ env:
   SCHEME: StikDebug
   CONFIGURATION: Debug
   DEPLOYMENT_TARGET: "17.4"
-  IPA_NAME: RouteSim-Debug.ipa
-  BUNDLE_ID: com.stik.routesim
-  DISPLAY_NAME: RouteSim
+  IPA_NAME: locspoof-Debug.ipa
+  BUNDLE_ID: app.locspoof.ios
+  DISPLAY_NAME: locspoof
 
 jobs:
   release:
