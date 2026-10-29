@@ -1,6 +1,6 @@
 # Third-Party Notices
 
-RouteSim is a fork of **StikDebug** (https://github.com/StephenDev0/StikDebug).
+locspoof for iOS is a fork of **RouteSim** (https://github.com/felix88195/RouteSim, MIT), which is a fork of **StikDebug** (https://github.com/StephenDev0/StikDebug).
 
 ## StikDebug
 
@@ -18,6 +18,6 @@ Portions of the Tunnel layer and related infrastructure in this repository are d
 
 Review the idevice project license for terms governing the prebuilt static library.
 
-## RouteSim-specific code
+## RouteSim and locspoof code
 
-New modules added in this fork (including `Simulation/`, `Routes/`, `Features/`, and documentation) are released under the MIT License — see [LICENSE](LICENSE).
+Modules added in RouteSim and in this fork (including `Simulation/`, `Routes/`, `Features/`, and documentation) are released under the MIT License — see [LICENSE](LICENSE).
