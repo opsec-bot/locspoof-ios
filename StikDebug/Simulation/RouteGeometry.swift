@@ -33,6 +33,7 @@ enum RouteGeometry {
     /// `result[0] == 0`; `result[i]` is the total distance to `coords[i]`.
     static func cumulativeDistances(_ coords: [CLLocationCoordinate2D]) -> [CLLocationDistance] {
         var result = [CLLocationDistance](repeating: 0, count: coords.count)
+        guard coords.count > 1 else { return result }
         for i in 1..<coords.count {
             result[i] = result[i - 1] + distance(from: coords[i - 1], to: coords[i])
         }
