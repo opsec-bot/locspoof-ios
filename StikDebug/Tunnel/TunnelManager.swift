@@ -1,6 +1,8 @@
 //
 //  TunnelManager.swift
-//  StikDebug
+//  locspoof
+//
+//  One place that knows whether the iPhone is reachable, and says so in words.
 //
 
 import Foundation
@@ -8,49 +10,121 @@ import Foundation
 final class TunnelManager: ObservableObject {
     static let shared = TunnelManager()
 
-    @Published private(set) var isConnected = false
+    enum Status: Equatable {
+        case idle
+        case connecting
+        case findingPort
+        case connected
+        case failed(ConnectionProblem)
+    }
+
+    @Published private(set) var status: Status = .idle
+
+    var isConnected: Bool { status == .connected }
 
     private var isStarting = false
 
-    private init() {}
+    private init() {
+        NotificationCenter.default.addObserver(
+            forName: .pairingFileImported, object: nil, queue: .main
+        ) { [weak self] _ in
+            self?.reconnectFromScratch()
+        }
+    }
+
+    // MARK: - Status updates from the location session
+
+    func noteLocationSessionUp() {
+        runOnMain { self.status = .connected }
+    }
+
+    func noteFindingPort() {
+        runOnMain { self.status = .findingPort }
+    }
+
+    func noteFailure(_ problem: ConnectionProblem) {
+        runOnMain { self.status = .failed(problem) }
+    }
 
     func markDisconnected() {
         runOnMain {
-            self.isConnected = false
+            if self.status == .connected { self.status = .idle }
         }
+    }
+
+    // MARK: - Connect
+
+    /// Throws away both cached sessions and connects again. Used after a new
+    /// pairing file or a port change.
+    func reconnectFromScratch(showErrorUI: Bool = true) {
+        JITEnableContext.shared.reset()
+        LocationSimulator.shared.reset()
+        status = .idle
+        start(showErrorUI: showErrorUI)
     }
 
     func start(showErrorUI: Bool = true) {
         guard Thread.isMainThread else {
-            DispatchQueue.main.async {
-                self.start(showErrorUI: showErrorUI)
-            }
+            DispatchQueue.main.async { self.start(showErrorUI: showErrorUI) }
             return
         }
 
-        let pairingFileURL = PairingFileStore.prepareURL()
-        guard FileManager.default.fileExists(atPath: pairingFileURL.path) else {
-            isConnected = false
+        guard PairingFileStore.exists else {
+            status = .failed(ConnectionProblem.from(code: -17, message: "Pairing file not found"))
             return
         }
 
-        guard !isStarting else {
-            return
-        }
-
+        guard !isStarting else { return }
         isStarting = true
+        status = .connecting
 
-        DispatchQueue.global(qos: .userInteractive).async { [showErrorUI] in
-            let result: Result<Void, NSError>
-            do {
-                try JITEnableContext.shared.startTunnel()
-                result = .success(())
-            } catch {
-                result = .failure(error as NSError)
-            }
-
+        DispatchQueue.global(qos: .userInitiated).async {
+            let result = self.connectFindingPortIfNeeded()
             DispatchQueue.main.async {
                 self.finishStart(result, showErrorUI: showErrorUI)
+            }
+        }
+    }
+
+    /// Scans for the RemotePairing port by hand (Settings > Find Port).
+    func findPort(completion: @escaping (UInt16?) -> Void) {
+        status = .findingPort
+        DispatchQueue.global(qos: .userInitiated).async {
+            let port = PortFinder.find(host: DeviceConnectionContext.targetIPAddress)
+            DispatchQueue.main.async {
+                if let port {
+                    DeviceConnectionContext.remotePairingPort = port
+                    self.reconnectFromScratch(showErrorUI: false)
+                } else {
+                    self.status = .failed(ConnectionProblem.from(code: 61, message: "No RemotePairing port answered (connection refused)"))
+                }
+                completion(port)
+            }
+        }
+    }
+
+    private func connectFindingPortIfNeeded() -> Result<Void, NSError> {
+        do {
+            try JITEnableContext.shared.startTunnel()
+            return .success(())
+        } catch let error as NSError {
+            let problem = ConnectionProblem.from(error: error)
+            guard problem.kind == .portClosed, DeviceConnectionContext.autoFindPort else {
+                return .failure(error)
+            }
+
+            noteFindingPort()
+            guard let port = PortFinder.find(host: DeviceConnectionContext.targetIPAddress) else {
+                return .failure(error)
+            }
+            LogManager.shared.addInfoLog("RemotePairing port moved to \(port)")
+            DeviceConnectionContext.remotePairingPort = port
+            LocationSimulator.shared.reset()
+            do {
+                try JITEnableContext.shared.startTunnel()
+                return .success(())
+            } catch let retryError as NSError {
+                return .failure(retryError)
             }
         }
     }
@@ -60,12 +134,25 @@ final class TunnelManager: ObservableObject {
 
         switch result {
         case .success:
-            isConnected = true
-            LogManager.shared.addInfoLog("Tunnel connected successfully")
+            status = .connected
+            LogManager.shared.addInfoLog("Tunnel connected on \(DeviceConnectionContext.endpointDescription)")
             mountDeveloperDiskImageIfNeeded()
         case .failure(let error):
-            isConnected = false
-            handleStartFailure(error, showErrorUI: showErrorUI)
+            let problem = ConnectionProblem.from(error: error)
+            status = .failed(problem)
+            LogManager.shared.addErrorLog("Tunnel failed: \(problem.details)")
+            if showErrorUI {
+                showAlert(
+                    title: problem.title,
+                    message: problem.message,
+                    showOk: false,
+                    showTryAgain: true
+                ) { shouldTryAgain in
+                    if shouldTryAgain {
+                        startTunnelInBackground()
+                    }
+                }
+            }
         }
     }
 
@@ -77,43 +164,6 @@ final class TunnelManager: ObservableObject {
             return
         }
         MountingProgress.shared.pubMount()
-    }
-
-    private func handleStartFailure(_ error: NSError, showErrorUI: Bool) {
-        LogManager.shared.addErrorLog(tunnelConnectionLogMessage(for: error))
-        guard showErrorUI else {
-            return
-        }
-
-        if error.code == -9 {
-            handleInvalidPairingFile()
-            return
-        }
-
-        showAlert(
-            title: "Connection Error",
-            message: tunnelConnectionAlertMessage(for: error),
-            showOk: false,
-            showTryAgain: true
-        ) { shouldTryAgain in
-            if shouldTryAgain {
-                startTunnelInBackground()
-            }
-        }
-    }
-
-    private func handleInvalidPairingFile() {
-        LogManager.shared.addInfoLog("Pairing file reported invalid; keeping existing file")
-
-        showAlert(
-            title: "Invalid Pairing File",
-            message: "The pairing file may be invalid or expired. You can import a new pairing file to replace it.",
-            showOk: true,
-            showTryAgain: false,
-            primaryButtonText: "Select New File"
-        ) { _ in
-            NotificationCenter.default.post(name: NSNotification.Name("ShowPairingFilePicker"), object: nil)
-        }
     }
 
     private func runOnMain(_ work: @escaping () -> Void) {
@@ -131,80 +181,4 @@ func startTunnelInBackground(showErrorUI: Bool = true) {
 
 func markTunnelDisconnected() {
     TunnelManager.shared.markDisconnected()
-}
-
-private func tunnelConnectionLogMessage(for error: NSError) -> String {
-    let target = "\(DeviceConnectionContext.targetIPAddress):49152"
-    return "Tunnel connection failed for \(target): \(error.localizedDescription) (Domain: \(error.domain), Code: \(error.code), Raw: \(String(describing: error)))"
-}
-
-private func tunnelConnectionAlertMessage(for error: NSError) -> String {
-    let targetIP = DeviceConnectionContext.targetIPAddress
-    let rawMessage = error.localizedDescription
-    let lowercasedMessage = rawMessage.lowercased()
-
-    let likelyCause: String
-    let recoverySteps: [String]
-
-    if error.code == 48 || lowercasedMessage.contains("address already in use") || lowercasedMessage.contains("port already in use") {
-        likelyCause = "A port needed for the tunnel is already in use."
-        recoverySteps = [
-            "Close other JIT, debugging, proxy, or VPN apps that may be using the tunnel.",
-            "Disconnect and reconnect LocalDevVPN.",
-            "Restart RouteSim, then try again.",
-            "If it keeps happening, reboot the device to clear the stuck port."
-        ]
-    } else if error.code == 54 || lowercasedMessage.contains("connection reset") {
-        likelyCause = "The device or VPN closed the tunnel connection before setup finished."
-        recoverySteps = [
-            "Open LocalDevVPN and confirm the VPN is connected.",
-            "Make sure LocalDevVPN is using the default \(DeviceConnectionContext.defaultTargetIPAddress) address.",
-            "Reconnect Wi-Fi and LocalDevVPN, then try again.",
-            "If this keeps happening, select a fresh pairing file."
-        ]
-    } else if error.code == -18 || lowercasedMessage.contains("parse target ip") {
-        likelyCause = "The configured target IP address is not valid."
-        recoverySteps = [
-            "Open Settings and check the target IP address.",
-            "Use the default \(DeviceConnectionContext.defaultTargetIPAddress)."
-        ]
-    } else if lowercasedMessage.contains("timed out") || lowercasedMessage.contains("timeout") {
-        likelyCause = "The app could not reach the device before the connection timed out."
-        recoverySteps = [
-            "Confirm Wi-Fi and LocalDevVPN are both connected.",
-            "Wake and unlock the target device.",
-            "Confirm LocalDevVPN is exposing the device at \(targetIP)."
-        ]
-    } else if lowercasedMessage.contains("network is unreachable") || lowercasedMessage.contains("no route") {
-        likelyCause = "The VPN route to the device is not available."
-        recoverySteps = [
-            "Disconnect and reconnect LocalDevVPN.",
-            "Confirm iOS shows the VPN indicator.",
-            "Try switching Wi-Fi off and on."
-        ]
-    } else {
-        likelyCause = "The tunnel could not be created."
-        recoverySteps = [
-            "Confirm Wi-Fi and LocalDevVPN are connected.",
-            "Wake and unlock the target device.",
-            "Reconnect LocalDevVPN, then try again."
-        ]
-    }
-
-    let steps = recoverySteps.enumerated()
-        .map { "\($0.offset + 1). \($0.element)" }
-        .joined(separator: "\n")
-
-    return """
-    \(likelyCause)
-
-    Target: \(targetIP):49152
-    Expected LocalDevVPN IP: \(DeviceConnectionContext.defaultTargetIPAddress)
-
-    Try this:
-    \(steps)
-
-    Technical details:
-    Code \(error.code): \(rawMessage)
-    """
 }
