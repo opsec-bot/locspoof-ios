@@ -63,21 +63,30 @@ final class RouteStore: ObservableObject {
 
     // MARK: - GPX export
 
+    /// Same shape locspoof's build_gpx writes, so routes move both ways.
     func exportGPX(_ route: SavedRoute) -> Data {
         var gpx = """
         <?xml version="1.0" encoding="UTF-8"?>
-        <gpx version="1.1" creator="RouteSim">
+        <gpx version="1.1" creator="locspoof" xmlns="http://www.topografix.com/GPX/1/1">
           <trk>
-            <name>\(route.name)</name>
+            <name>\(escapeXML(route.name))</name>
             <trkseg>
         """
         for wp in route.waypoints {
             gpx += "\n      <trkpt lat=\"\(wp.latitude)\" lon=\"\(wp.longitude)\">"
-            if let n = wp.name { gpx += "<name>\(n)</name>" }
+            if let n = wp.name { gpx += "<name>\(escapeXML(n))</name>" }
             gpx += "</trkpt>"
         }
-        gpx += "\n    </trkseg>\n  </trk>\n</gpx>"
+        gpx += "\n    </trkseg>\n  </trk>\n</gpx>\n"
         return Data(gpx.utf8)
+    }
+
+    private func escapeXML(_ text: String) -> String {
+        text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
     // MARK: - Private
