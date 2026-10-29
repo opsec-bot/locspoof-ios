@@ -1,123 +1,102 @@
 import Foundation
 import CoreLocation
 
-// MARK: - Typed error wrapper around the C bridge's Int32 status codes
-
-enum LocationSimulatorError: LocalizedError {
-    case invalidIP
-    case pairingFileUnreadable
-    case providerCreateFailed
-    case remoteServerFailed
-    case sessionCreateFailed
-    case locationSetFailed
-    case clearFailed
-    case unknown(Int32)
-
-    init(statusCode: Int32) {
-        switch statusCode {
-        case LocationSimulationStatus.invalidIP:          self = .invalidIP
-        case LocationSimulationStatus.pairingRead:        self = .pairingFileUnreadable
-        case LocationSimulationStatus.providerCreate:     self = .providerCreateFailed
-        case LocationSimulationStatus.remoteServer:       self = .remoteServerFailed
-        case LocationSimulationStatus.locationSimulation: self = .sessionCreateFailed
-        case LocationSimulationStatus.locationSet:        self = .locationSetFailed
-        case LocationSimulationStatus.locationClear:      self = .clearFailed
-        default:                                          self = .unknown(statusCode)
-        }
-    }
-
-    var errorDescription: String? {
-        switch self {
-        case .invalidIP:              return "Device IP address is invalid. Check Settings."
-        case .pairingFileUnreadable:  return "Pairing file is missing or unreadable. Re-import it."
-        case .providerCreateFailed:   return "Could not create the RSD tunnel. Is LocalDevVPN connected?"
-        case .remoteServerFailed:     return "Remote server connection failed. Wake the device and try again."
-        case .sessionCreateFailed:    return "Location simulation session could not be created."
-        case .locationSetFailed:      return "Failed to set the simulated location. Session was reset."
-        case .clearFailed:            return "Failed to clear the simulated location."
-        case .unknown(let code):      return "Location simulation error (code \(code))."
-        }
-    }
-}
-
 // MARK: - LocationSimulator
 //
-// Thread-safe wrapper over the C bridge.
-// All bridge calls are dispatched on LocationSimulationCommandQueue.shared (serial).
+// Thread-safe wrapper over the C bridge. Every bridge call runs on
+// LocationSimulationCommandQueue.shared (serial).
+//
+// When the iPhone refuses the connection, the usual reason is that it picked a
+// new RemotePairing port after a restart. In that case this finds the new port
+// once and retries, instead of failing with "connection refused".
 
-final class LocationSimulator: ObservableObject {
+final class LocationSimulator {
     static let shared = LocationSimulator()
 
-    @Published private(set) var isHolding = false
-    @Published private(set) var lastError: LocationSimulatorError?
-
-    private var holdTimer: Timer?
-    private var holdCoordinate: CLLocationCoordinate2D?
+    private let queue = LocationSimulationCommandQueue.shared
 
     private init() {}
 
-    // MARK: - Set location (called each tick by RoutePlayer)
-
-    @discardableResult
-    func setLocation(_ coordinate: CLLocationCoordinate2D) async -> Result<Void, LocationSimulatorError> {
+    /// Sends one coordinate. Returns nil on success.
+    func set(_ coordinate: CLLocationCoordinate2D) async -> ConnectionProblem? {
         await withCheckedContinuation { continuation in
-            LocationSimulationCommandQueue.shared.async {
-                let code = simulate_location(
-                    DeviceConnectionContext.targetIPAddress,
-                    coordinate.latitude,
-                    coordinate.longitude,
-                    PairingFileStore.prepareURL().path
-                )
-                if code == LocationSimulationStatus.ok {
-                    continuation.resume(returning: .success(()))
-                } else {
-                    let error = LocationSimulatorError(statusCode: code)
-                    Task { @MainActor in self.lastError = error }
-                    continuation.resume(returning: .failure(error))
-                }
+            queue.async {
+                continuation.resume(returning: self.setOnQueue(coordinate))
             }
         }
     }
 
-    // MARK: - Clear
-
-    func clear() {
-        LocationSimulationCommandQueue.shared.async {
-            _ = clear_simulated_location()
-        }
-        stopHold()
-    }
-
-    // MARK: - Hold / keep-alive
-    //
-    // Keeps re-sending the last coordinate every 4 seconds so iOS does not
-    // revert to the real GPS while the player is paused or at end-of-route.
-
-    func startHold(at coordinate: CLLocationCoordinate2D) {
-        stopHold()
-        holdCoordinate = coordinate
-        isHolding = true
-
-        DispatchQueue.main.async {
-            self.holdTimer = Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { [weak self] _ in
-                guard let self, let coord = self.holdCoordinate else { return }
-                LocationSimulationCommandQueue.shared.async {
-                    _ = simulate_location(
-                        DeviceConnectionContext.targetIPAddress,
-                        coord.latitude, coord.longitude,
-                        PairingFileStore.prepareURL().path
-                    )
-                }
+    /// Stops simulating; the iPhone goes back to its real location.
+    func clear() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            queue.async {
+                _ = clear_simulated_location()
+                continuation.resume()
             }
         }
     }
 
-    func stopHold() {
-        DispatchQueue.main.async {
-            self.holdTimer?.invalidate()
-            self.holdTimer = nil
-            self.isHolding = false
-            self.holdCoordinate = nil
+    /// Drops the cached session (new pairing file, new port).
+    func reset() {
+        queue.async {
+            reset_location_simulation()
+        }
+    }
+
+    private func setOnQueue(_ coordinate: CLLocationCoordinate2D) -> ConnectionProblem? {
+        var status = send(coordinate)
+        if status == LocationSimulationStatus.ok {
+            TunnelManager.shared.noteLocationSessionUp()
+            return nil
+        }
+
+        if status == LocationSimulationStatus.providerCreate,
+           DeviceConnectionContext.autoFindPort,
+           isRefused(last_location_simulation_error()) {
+            TunnelManager.shared.noteFindingPort()
+            if let port = PortFinder.find(host: DeviceConnectionContext.targetIPAddress) {
+                LogManager.shared.addInfoLog("RemotePairing port moved to \(port)")
+                DeviceConnectionContext.remotePairingPort = port
+                JITEnableContext.shared.reset()
+                status = send(coordinate)
+                if status == LocationSimulationStatus.ok {
+                    TunnelManager.shared.noteLocationSessionUp()
+                    return nil
+                }
+            }
+        }
+
+        let problem = problem(for: status)
+        TunnelManager.shared.noteFailure(problem)
+        return problem
+    }
+
+    private func send(_ coordinate: CLLocationCoordinate2D) -> Int32 {
+        simulate_location(
+            DeviceConnectionContext.targetIPAddress,
+            coordinate.latitude,
+            coordinate.longitude,
+            PairingFileStore.prepareURL().path
+        )
+    }
+
+    private func isRefused(_ error: (code: Int, message: String)?) -> Bool {
+        guard let error else { return false }
+        let lower = error.message.lowercased()
+        return lower.contains("refused") || lower.contains("os error 61")
+    }
+
+    private func problem(for status: Int32) -> ConnectionProblem {
+        if let error = last_location_simulation_error() {
+            return ConnectionProblem.from(code: error.code, message: error.message)
+        }
+        switch status {
+        case LocationSimulationStatus.pairingRead:
+            return ConnectionProblem.from(code: -17, message: "Pairing file not found or unreadable")
+        case LocationSimulationStatus.invalidIP:
+            return ConnectionProblem.from(code: -18, message: "Device IP address is not valid")
+        default:
+            return ConnectionProblem.from(code: Int(status), message: "Location simulation failed at step \(status)")
         }
     }
 }
