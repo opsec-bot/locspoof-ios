@@ -33,7 +33,18 @@ This is the on-device side of [locspoof](https://github.com/opsec-bot/locspoof).
    ```
    That writes `~/.pymobiledevice3/remote_<udid>.plist`. locspoof wants a plist with three keys: `identifier`, `private_key` and `public_key`. The `identifier` is pymobiledevice3's `generate_host_id()`.
 4. Send the file to the iPhone and import it in locspoof's setup screens.
-5. Turn on LocalDevVPN and join any Wi-Fi network once. After the tunnel connects you can leave Wi-Fi.
+5. Turn on LocalDevVPN and connect the tunnel (see below).
+
+## Using it on cellular
+
+The tunnel can only start while the iPhone is on Wi-Fi. Once it's up, it keeps running on cellular.
+
+1. Join any Wi-Fi network. A friend's hotspot works, and so does free Wi-Fi at a store or cafe. It doesn't need working internet.
+2. Open locspoof and wait until the status at the top says **Connected**. Start your route or teleport.
+3. **Turn Wi-Fi off** in Settings or Control Center, and leave cellular data on.
+4. Leave Wi-Fi off the whole time. If the phone joins another Wi-Fi network by itself, the tunnel resets and your location jumps back to the real one. Then you have to do step 1 again.
+
+That's it. As long as Wi-Fi stays off and cellular stays on, it keeps running.
 
 ## Install
 
