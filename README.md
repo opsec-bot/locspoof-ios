@@ -37,7 +37,9 @@ This is the on-device side of [locspoof](https://github.com/opsec-bot/locspoof).
 
 ## Install
 
-Download `locspoof-Debug.ipa` from the latest [Actions run](../../actions/workflows/build_ipa.yml), then sign and install it with FlareStore, SideStore or AltStore.
+Download `locspoof-Debug.ipa` from the latest [Actions run](../../actions/workflows/build_ipa.yml), then sign and install it.
+
+I sign mine with [FlareStore](https://flarestore.app/). A cert is about $3, and you sign the IPA right in the browser. SideStore or AltStore work too if you'd rather use a free Apple ID.
 
 ## Build
 
