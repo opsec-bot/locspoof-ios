@@ -1,11 +1,10 @@
 import SwiftUI
+import UIKit
 
 struct RouteLibraryView: View {
     @StateObject private var store = RouteStore.shared
-    @State private var showingPSTABrowser = false
-    @State private var selectedRoute: SavedRoute?
-    @State private var showDeleteConfirm = false
     @State private var routeToDelete: SavedRoute?
+    @State private var showImporter = false
 
     var body: some View {
         Group {
@@ -15,122 +14,127 @@ struct RouteLibraryView: View {
                 routeList
             }
         }
-        .navigationTitle("Library")
+        .navigationTitle("Routes")
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    showingPSTABrowser = true
+                    showImporter = true
                 } label: {
-                    Label("PSTA Routes", systemImage: "bus")
+                    Label("Import GPX", systemImage: "doc.badge.plus")
                 }
             }
         }
-        .sheet(isPresented: $showingPSTABrowser) {
-            PSTABrowserView()
-        }
-        .confirmationDialog("Delete Route", isPresented: $showDeleteConfirm) {
-            Button("Delete", role: .destructive) {
-                if let r = routeToDelete { store.delete(r) }
+        .fileImporter(
+            isPresented: $showImporter,
+            allowedContentTypes: GPXImporter.supportedTypes,
+            allowsMultipleSelection: false
+        ) { result in
+            if case .success(let urls) = result, let url = urls.first {
+                AppModel.shared.map.importRoute(from: url)
+                AppModel.shared.tab = .map
             }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This action cannot be undone.")
+        }
+        .confirmationDialog(
+            "Delete \(routeToDelete?.name ?? "route")?",
+            isPresented: Binding(get: { routeToDelete != nil }, set: { if !$0 { routeToDelete = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button("Delete", role: .destructive) {
+                if let route = routeToDelete { store.delete(route) }
+                routeToDelete = nil
+            }
         }
     }
 
     private var routeList: some View {
         List {
             ForEach(store.routes) { route in
-                RouteRowView(route: route)
-                    .swipeActions(edge: .trailing) {
-                        Button(role: .destructive) {
-                            routeToDelete = route
-                            showDeleteConfirm = true
-                        } label: {
-                            Label("Delete", systemImage: "trash")
-                        }
-
-                        Button {
-                            shareGPX(route)
-                        } label: {
-                            Label("Export GPX", systemImage: "square.and.arrow.up")
-                        }
-                        .tint(.blue)
+                Button {
+                    AppModel.shared.load(route)
+                } label: {
+                    RouteRow(route: route)
+                }
+                .swipeActions(edge: .trailing) {
+                    Button(role: .destructive) {
+                        routeToDelete = route
+                    } label: {
+                        Label("Delete", systemImage: "trash")
                     }
+                    Button {
+                        shareGPX(route)
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                    }
+                    .tint(Theme.accent)
+                }
             }
         }
     }
 
     private var emptyState: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "map.fill")
-                .font(.system(size: 56))
+        VStack(spacing: 12) {
+            Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                .font(.system(size: 44))
                 .foregroundStyle(.secondary)
-            Text("No Saved Routes")
+            Text("No saved routes")
                 .font(.title3.bold())
-            Text("Save a route from the Simulate tab, or load a PSTA bus route.")
+            Text("Build a route on the map and pick Save from the ••• menu, or import a GPX from locspoof on your PC.")
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 32)
-            Button("Browse PSTA Routes") {
-                showingPSTABrowser = true
-            }
-            .buttonStyle(.borderedProminent)
+            Button("Import GPX") { showImporter = true }
+                .buttonStyle(.bordered)
         }
     }
 
     private func shareGPX(_ route: SavedRoute) {
         let data = RouteStore.shared.exportGPX(route)
-        let url = FileManager.default.temporaryDirectory
-            .appendingPathComponent("\(route.name).gpx")
+        let safeName = route.name.replacingOccurrences(of: "/", with: "-")
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("\(safeName).gpx")
         try? data.write(to: url)
-        let av = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-        UIApplication.shared
-            .connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .first?
-            .windows.first?
-            .rootViewController?
-            .present(av, animated: true)
+        let sheet = UIActivityViewController(activityItems: [url], applicationActivities: nil)
+        guard let root = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .flatMap(\.windows)
+            .first(where: \.isKeyWindow)?
+            .rootViewController else { return }
+        var top = root
+        while let presented = top.presentedViewController { top = presented }
+        top.present(sheet, animated: true)
     }
 }
 
-private struct RouteRowView: View {
+private struct RouteRow: View {
     let route: SavedRoute
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: route.mode.systemImage)
-                .font(.title2)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 36)
+                .font(.title3)
+                .foregroundStyle(Theme.accent)
+                .frame(width: 32)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(route.name).font(.headline)
-                HStack(spacing: 8) {
-                    Text(route.mode.displayName)
-                    Text("·")
-                    Text(formatDistance(route.totalDistanceMeters))
-                    Text("·")
-                    Text("\(route.waypoints.count) pts")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                Text(route.name)
+                    .font(.headline)
+                    .foregroundStyle(Theme.ink)
+                Text(detail)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
+            Spacer()
+            Image(systemName: "chevron.right")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.tertiary)
         }
         .padding(.vertical, 4)
     }
 
-    private func formatDistance(_ m: Double) -> String {
-        m >= 1000 ? String(format: "%.1f km", m / 1000) : String(format: "%.0f m", m)
-    }
-}
-
-// MARK: - LibraryView entry (referenced by RootView)
-
-struct LibraryView: View {
-    var body: some View {
-        RouteLibraryView()
+    private var detail: String {
+        let miles = route.totalDistanceMeters / Units.metersPerMile
+        var parts = [route.mode.displayName, String(format: "%.1f mi", miles), "\(route.waypoints.count) points"]
+        if let cap = route.speedCapMph { parts.append("max \(Int(cap)) mph") }
+        return parts.joined(separator: " · ")
     }
 }
