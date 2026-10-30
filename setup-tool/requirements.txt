@@ -1,7 +1,5 @@
 # Exact versions locspoof Setup is tested with.
-pymobiledevice3==11.12.1
-# pymobiledevice3 11.12.1 doesn't pin srptools, and srptools 2.0.0 changed
-# verify_proof(): pairing then fails with an AssertionError in _verify_proof.
-# 11.48+ drops srptools entirely; until we move up, hold it at 1.0.1.
-srptools==1.0.1
+# 11.48 has its own SRP code (no more srptools, whose 2.0 broke pairing) and
+# installs the Cryptex developer disk image that iOS 27 devices need.
+pymobiledevice3==11.48.0
 pyinstaller
