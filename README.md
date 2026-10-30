@@ -24,7 +24,9 @@ This is the on-device side of [locspoof](https://github.com/opsec-bot/locspoof).
 
 ## Setup
 
-**Have a Mac?** Follow [docs/SETUP-MAC.md](docs/SETUP-MAC.md): no Python or Terminal, uses Sideloadly and [idevice_pair](https://github.com/jkcoxson/idevice_pair).
+**Start here: [docs/SETUP.md](docs/SETUP.md).** Step by step for Windows and Mac. A $3 signing cert to install, and the one-click [locspoof Setup](setup-tool/) tool for the pairing file and Developer Mode. No Python, no Terminal.
+
+The manual steps below are for people who want to do it by hand.
 
 1. Turn on Developer Mode: Settings > Privacy & Security > Developer Mode.
 2. Install [LocalDevVPN](https://apps.apple.com/app/id6755608044) from the App Store.
