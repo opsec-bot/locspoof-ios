@@ -24,6 +24,8 @@ This is the on-device side of [locspoof](https://github.com/opsec-bot/locspoof).
 
 ## Setup
 
+**Have a Mac?** Follow [docs/SETUP-MAC.md](docs/SETUP-MAC.md): no Python or Terminal, uses Sideloadly and [idevice_pair](https://github.com/jkcoxson/idevice_pair).
+
 1. Turn on Developer Mode: Settings > Privacy & Security > Developer Mode.
 2. Install [LocalDevVPN](https://apps.apple.com/app/id6755608044) from the App Store.
 3. Make a pairing file on a computer, with the iPhone plugged in:
@@ -48,7 +50,7 @@ That's it. As long as Wi-Fi stays off and cellular stays on, it keeps running.
 
 ## Install
 
-Download `locspoof-Debug.ipa` from the latest [Actions run](../../actions/workflows/build_ipa.yml), then sign and install it.
+Download the IPA from the [latest release](../../releases/latest), then sign and install it. Newer untested builds are on the [Actions runs](../../actions/workflows/build_ipa.yml).
 
 I sign mine with [FlareStore](https://flarestore.app/). A cert is about $3, and you sign the IPA right in the browser. SideStore or AltStore work too if you'd rather use a free Apple ID.
 
