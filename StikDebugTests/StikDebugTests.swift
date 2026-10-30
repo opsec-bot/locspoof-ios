@@ -55,8 +55,54 @@ final class MotionPlanTests: XCTestCase {
             XCTAssertLessThanOrEqual(stop.distance, straight.length - 15)
         }
         for (a, b) in zip(plan.stops, plan.stops.dropFirst()) {
-            XCTAssertGreaterThanOrEqual(b.distance - a.distance, 40)
+            XCTAssertGreaterThanOrEqual(b.distance - a.distance, MotionParams.drive.stopGap)
         }
+    }
+
+    func testNoStopsOnHighway() {
+        let candidates = stride(from: 0.0, through: straight.length, by: 10).map { $0 }
+        let highway = [Double?](repeating: 29, count: straight.points.count - 1)
+        let plan = MotionPlan.build(route: straight, mode: .drive, speedCap: nil, segmentSpeeds: highway,
+                                    junctions: candidates, turns: candidates, seed: 7)
+        XCTAssertTrue(plan.stops.isEmpty)
+    }
+
+    func testControlsReplaceJunctionGuess() {
+        let junctions = stride(from: 100.0, through: 1000, by: 100).map { $0 }
+        let plan = MotionPlan.build(route: straight, mode: .drive, speedCap: nil, junctions: junctions, controls: [], seed: 7)
+        XCTAssertTrue(plan.stops.isEmpty)
+    }
+
+    func testStopSignsAlmostAlwaysStop() {
+        let signs = stride(from: 100.0, through: 1000, by: 300).map { (distance: $0, kind: "stop") }
+        let plan = MotionPlan.build(route: straight, mode: .drive, speedCap: nil, controls: signs, seed: 7)
+        XCTAssertGreaterThanOrEqual(plan.stops.count, 3)
+        XCTAssertTrue(plan.stops.allSatisfy { $0.dwell <= 4 })
+    }
+
+    func testControlsAtOneIntersectionMerge() {
+        let merged = MotionPlan.mergeControls([(100, "stop"), (120, "signal"), (400, "give_way")])
+        XCTAssertEqual(merged.map(\.kind), ["signal", "give_way"])
+        XCTAssertEqual(merged.first?.distance, 100)
+    }
+
+    func testTrafficControlsNearRoute() {
+        let points = straight.points
+        let on = TrafficControl(id: 1, lat: 32.955, lon: -96.8900, kind: "signal")
+        let side = TrafficControl(id: 2, lat: 32.955, lon: -96.8897, kind: "stop") // ~28 m east
+        XCTAssertEqual(TrafficControls.near(points, [on, side]).map(\.id), [1])
+    }
+
+    func testTrafficControlTiles() {
+        let tiles = TrafficControls.tiles(for: straight.points)
+        // Floating point decides whether a point on a tile edge falls in one tile
+        // or the next, so check coverage rather than an exact count.
+        for point in straight.points {
+            XCTAssertTrue(tiles.contains(TrafficControls.Tile(point.latitude, point.longitude)))
+        }
+        XCTAssertLessThanOrEqual(tiles.count, 4)
+        XCTAssertTrue(TrafficControls.query(Array(tiles)).contains("traffic_signals|stop|give_way"))
+        XCTAssertEqual(TrafficControls.classify(["highway": "stop", "stop": "all"]), "all_way_stop")
     }
 
     func testSameSeedSamePlan() {

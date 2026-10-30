@@ -68,6 +68,29 @@ struct MotionPlan {
         return total
     }
 
+    // MARK: - Traffic controls
+
+    /// One intersection is often mapped as several nodes: a light per direction,
+    /// or per carriageway on a divided road. Each would get its own roll at a
+    /// red, so anything this close together counts once.
+    static let controlMergeDistance: CLLocationDistance = 50
+    /// When merged, the strongest control wins: a light beats a sign.
+    private static let controlRank = ["signal": 3, "all_way_stop": 2, "stop": 1, "give_way": 0]
+
+    static func mergeControls(_ controls: [(distance: CLLocationDistance, kind: String)]) -> [(distance: CLLocationDistance, kind: String)] {
+        var merged: [(distance: CLLocationDistance, kind: String)] = []
+        for control in controls.sorted(by: { $0.distance < $1.distance }) {
+            if let last = merged.last, control.distance - last.distance < controlMergeDistance {
+                if controlRank[control.kind, default: -1] > controlRank[last.kind, default: -1] {
+                    merged[merged.count - 1].kind = control.kind
+                }
+                continue
+            }
+            merged.append(control)
+        }
+        return merged
+    }
+
     // MARK: - Build
 
     /// - Parameters:
@@ -75,6 +98,9 @@ struct MotionPlan {
     ///     setting still crawls through a corner, it just never exceeds 65.
     ///   - segmentSpeeds: road speed per route segment in m/s, nil where unknown.
     ///   - junctions, turns: distances along the route.
+    ///   - controls: real traffic lights and signs from OSM. nil means unknown,
+    ///     so stops are guessed from junctions; an array, even an empty one,
+    ///     replaces that guess.
     static func build(
         route: Polyline,
         mode: TravelMode,
@@ -82,6 +108,7 @@ struct MotionPlan {
         segmentSpeeds: [Double?] = [],
         junctions: [CLLocationDistance] = [],
         turns: [CLLocationDistance] = [],
+        controls: [(distance: CLLocationDistance, kind: String)]? = nil,
         stopsEnabled: Bool = true,
         seed: UInt64? = nil
     ) -> MotionPlan {
@@ -109,6 +136,10 @@ struct MotionPlan {
             ceiling[i] = min(base, params.maxSpeed)
         }
 
+        // Road speed before corners and stops shape it, used to judge whether a
+        // junction is the kind you would stop at.
+        let roadCeiling = ceiling
+
         // Pass 2: corner braking, applied over a short window so the corner has
         // width and the smoothing passes have something to brake into.
         if route.points.count >= 3 {
@@ -129,18 +160,33 @@ struct MotionPlan {
         // Pass 3: stops at junctions and turns.
         var stops: [PlannedStop] = []
         if stopsEnabled {
-            var candidates: [(distance: Double, reason: String, chance: Double)] = []
-            candidates += junctions.map { (distance: $0, reason: "junction", chance: params.junctionStopChance) }
-            candidates += turns.map { (distance: $0, reason: "turn", chance: params.turnStopChance) }
+            // scaled: whether road speed lowers the chance. A light or a sign
+            // applies however fast the road is.
+            var candidates: [(distance: Double, reason: String, chance: Double, dwell: ClosedRange<Double>, scaled: Bool)] = []
+            if let controls {
+                for control in mergeControls(controls) {
+                    guard let rule = params.controls[control.kind] else { continue }
+                    candidates.append((distance: control.distance, reason: control.kind, chance: rule.chance, dwell: rule.dwell, scaled: false))
+                }
+                candidates += turns.map { (distance: $0, reason: "turn", chance: params.turnStopChanceKnown, dwell: 1.0...5.0, scaled: true) }
+            } else {
+                candidates += junctions.map { (distance: $0, reason: "junction", chance: params.junctionStopChance, dwell: params.stopDwell, scaled: true) }
+                candidates += turns.map { (distance: $0, reason: "turn", chance: params.turnStopChance, dwell: params.stopDwell, scaled: true) }
+            }
             candidates.sort { $0.distance < $1.distance }
 
             var lastStop = -Double.greatestFiniteMagnitude
             for candidate in candidates {
-                // Never stop twice within 40 m, or right at either end.
-                if candidate.distance - lastStop < 40 { continue }
+                // Never stop twice too close together, or right at either end.
+                if candidate.distance - lastStop < params.stopGap { continue }
                 if candidate.distance < 15 || candidate.distance > length - 15 { continue }
-                if rng.unit() > candidate.chance { continue }
-                let dwell = rng.uniform(params.stopDwell)
+                var chance = candidate.chance
+                if candidate.scaled {
+                    let index = min(count - 1, max(0, Int((candidate.distance / step).rounded())))
+                    chance *= MotionParams.stopScale(roadSpeed: roadCeiling[index])
+                }
+                if rng.unit() > chance { continue }
+                let dwell = rng.uniform(candidate.dwell)
                 stops.append(PlannedStop(distance: candidate.distance, dwell: dwell, reason: candidate.reason))
                 lastStop = candidate.distance
                 for i in window(centre: candidate.distance, halfWidth: 1.5, step: step, count: count) {
