@@ -7,7 +7,9 @@ Runs on Windows and macOS. With the iPhone plugged in by cable it:
    the FlareStore signer won't even open without it,
 3. waits while locspoof gets installed (the phone can be unplugged meanwhile),
 4. makes a fresh RemotePairing file,
-5. puts it straight into locspoof's Documents folder over the cable.
+5. puts it straight into locspoof's Documents folder over the cable,
+6. installs Apple's developer disk image. From iOS 27 that has to be the
+   Cryptex variant over cryptexd, which the app can't do itself.
 
 locspoof moves that file into place the next time it opens, replacing any
 older one. The pairing file never touches this computer's disk outside
@@ -24,12 +26,14 @@ import sys
 import traceback
 
 from pymobiledevice3.exceptions import (
+    AlreadyMountedError,
     ConnectionFailedToUsbmuxdError,
     MuxException,
     PairingDialogResponsePendingError,
     PasswordRequiredError,
     RemotePairingCompletedError,
     UserDeniedPairingError,
+    UserspaceTunnelUnavailableError,
 )
 from pymobiledevice3.lockdown import create_using_usbmux
 from pymobiledevice3.pair_records import generate_host_id
@@ -37,9 +41,11 @@ from pymobiledevice3.remote.tunnel_service import RemotePairingLockdownService
 from pymobiledevice3.services.amfi import AmfiService
 from pymobiledevice3.services.house_arrest import HouseArrestService
 from pymobiledevice3.services.installation_proxy import InstallationProxyService
+from pymobiledevice3.services.mobile_image_mounter import auto_mount
+from pymobiledevice3.remote.userspace_tunnel import UserspaceRsdTunnel
 from pymobiledevice3.usbmux import list_devices
 
-VERSION = "1.1.1"
+VERSION = "1.2.0"
 BUNDLE_ID = "app.locspoof.ios"
 # locspoof's PairingFileStore picks this name up from Documents.
 DROP_NAME = "pairingFile.plist"
@@ -55,7 +61,7 @@ GREEN, YELLOW, RED, BOLD, RESET = "\033[32m", "\033[33m", "\033[31m", "\033[1m",
 
 
 def title(n: int, text: str) -> None:
-    print(f"\n{BOLD}Step {n} of 5: {text}{RESET}")
+    print(f"\n{BOLD}Step {n} of 6: {text}{RESET}")
 
 
 def todo(text: str) -> None:
@@ -211,6 +217,24 @@ async def put_into_locspoof(lockdown, data: bytes) -> None:
     raise RuntimeError("Couldn't write the pairing file into locspoof.")
 
 
+async def install_disk_image(udid: str, lockdown) -> None:
+    todo("Downloading Apple's developer disk image and installing it. Takes up to a minute.")
+    try:
+        # cryptexd (iOS 27+) is only reachable over an RSD tunnel. The userspace
+        # tunnel needs no admin rights and uses the pairing record from step 4.
+        async with UserspaceRsdTunnel(serial=udid, autopair=True) as rsd:
+            await auto_mount(rsd)
+    except AlreadyMountedError:
+        pass
+    except UserspaceTunnelUnavailableError:
+        # iOS 17.0 - 17.3 has no tunnel service; the plain image mounter works there.
+        try:
+            await auto_mount(lockdown)
+        except AlreadyMountedError:
+            pass
+    done("Developer disk image is installed.")
+
+
 async def main() -> None:
     print(f"{BOLD}locspoof Setup {VERSION}{RESET}")
     print("Gets your iPhone ready for locspoof. Follow the yellow lines.")
@@ -234,6 +258,9 @@ async def main() -> None:
 
     title(5, "Put it into locspoof")
     await put_into_locspoof(lockdown, data)
+
+    title(6, "Developer disk image")
+    await install_disk_image(udid, lockdown)
 
     print(f"\n{GREEN}{BOLD}All done.{RESET} You can unplug the iPhone.")
     print("  1. If locspoof is open, close it fully (swipe it away in the app switcher).")

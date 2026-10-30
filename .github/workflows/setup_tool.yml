@@ -35,10 +35,10 @@ jobs:
       - name: Install
         run: python -m pip install -r setup-tool/requirements.txt
       - name: Check pinned versions
-        run: python -c "import importlib.metadata as m; v=m.version('srptools'); print('srptools', v); assert v=='1.0.1', v"
+        run: python -c "import importlib.metadata as m; v=m.version('pymobiledevice3'); print('pymobiledevice3', v); assert v=='11.48.0', v"
       - name: Build
         working-directory: setup-tool
-        run: python -m PyInstaller --noconfirm --onefile --console --name locspoof-setup --collect-all pymobiledevice3 --collect-all pytun_pmd3 locspoof_setup.py
+        run: python -m PyInstaller --noconfirm --onefile --console --name locspoof-setup --collect-all pymobiledevice3 --collect-all pytun_pmd3 --recursive-copy-metadata pymobiledevice3 locspoof_setup.py
       - name: Package (Windows)
         if: runner.os == 'Windows'
         working-directory: setup-tool
