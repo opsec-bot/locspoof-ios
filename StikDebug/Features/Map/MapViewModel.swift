@@ -191,6 +191,13 @@ final class MapViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             plannedRoute = route
             isRouting = false
+
+            // Lights and stop signs come after the route so the line shows up
+            // straight away. Starting before they arrive guesses stops instead.
+            guard route.source != "Straight line" else { return }
+            let controls = await TrafficControls.along(route.points)
+            guard !Task.isCancelled else { return }
+            plannedRoute?.controls = controls
         }
     }
 
@@ -213,6 +220,7 @@ final class MapViewModel: ObservableObject {
             segmentSpeeds: planned.segmentSpeeds,
             junctions: planned.junctions.map { polyline.distanceAlong(nearestTo: $0) },
             turns: planned.turns.map { polyline.distanceAlong(nearestTo: $0) },
+            controls: planned.controls?.map { (distance: polyline.distanceAlong(nearestTo: $0.coordinate), kind: $0.kind) },
             stopsEnabled: stopsEnabled
         )
         player.loop = loop
