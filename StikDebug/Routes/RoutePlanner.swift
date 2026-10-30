@@ -12,6 +12,9 @@ struct PlannedRoute {
     var turns: [CLLocationCoordinate2D]
     /// Which engine answered: "OSRM", "Apple Maps" or "Straight line".
     var source: String
+    /// Real lights and signs from OSM, filled in after the route arrives.
+    /// nil until then, or when Overpass could not be reached.
+    var controls: [TrafficControl]? = nil
 }
 
 struct PlaceResult: Identifiable, Hashable {
@@ -58,9 +61,10 @@ enum RoutePlanner {
 
     /// Manoeuvres that involve actually turning. "new name" and "continue" are
     /// just the road changing name underneath you.
+    // Only manoeuvres where a car can actually come to a halt. Forks, merges and
+    // ramps happen at speed, so counting them put full stops on the highway.
     private static let turnManeuvers: Set<String> = [
-        "turn", "end of road", "fork", "merge", "on ramp", "off ramp",
-        "roundabout", "rotary", "roundabout turn"
+        "turn", "end of road", "roundabout", "rotary", "roundabout turn"
     ]
 
     static func straightLine(_ waypoints: [CLLocationCoordinate2D]) -> PlannedRoute {
