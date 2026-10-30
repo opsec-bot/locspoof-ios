@@ -16,6 +16,10 @@ If macOS says an app "can't be opened", right-click it, choose **Open**, then **
 
 ## 2. Install locspoof
 
+**Bought a signing cert (FlareStore or similar)?** Skip Sideloadly. On the iPhone, open the signer's site, upload `locspoof-2.1.0.ipa` (download it on the phone from the release link above), sign it, and tap install. Then trust it in **Settings > General > VPN & Device Management** if asked. A cert lasts about a year, so there's no 7-day renewal. Go to step 3.
+
+**Free Apple ID instead:**
+
 1. Plug the iPhone into the Mac and unlock it. Tap **Trust** if it asks.
 2. Open Sideloadly. Drag `locspoof-2.1.0.ipa` onto it.
 3. Type your Apple ID email and press **Start**. Enter your password and any code Apple sends you.
@@ -27,7 +31,7 @@ With a free Apple ID the app stops opening after 7 days. Plug in and press Start
 
 On the iPhone: **Settings > Privacy & Security > Developer Mode**, turn it on, and let the phone restart. After the restart, tap **Turn On** and enter your passcode.
 
-The Developer Mode switch only shows up once a sideloaded app is installed, so do step 2 first.
+The Developer Mode switch only shows up once a sideloaded app is installed, so do step 2 first. Still not there? idevice_pair (step 4) can turn Developer Mode on over the cable.
 
 ## 4. Make the pairing file
 
