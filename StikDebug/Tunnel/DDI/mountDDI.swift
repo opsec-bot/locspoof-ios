@@ -23,6 +23,13 @@ enum MountCheckResult {
     case unreachable
 }
 
+/// From iOS 27 the developer disk image has to be the Cryptex variant, installed
+/// over cryptexd. The app's bundled library can't do that, and the Personalized
+/// image it can mount has no build identity for those devices (BadBuildManifest).
+/// So locspoof Setup installs it from a computer, and the app doesn't try.
+/// Same cutoff as pymobiledevice3 (CRYPTEX_IMAGE_MIN_VERSION).
+let setupInstallsDiskImage = ProcessInfo.processInfo.operatingSystemVersion.majorVersion >= 27
+
 func isMounted() -> Bool {
     return checkMountStatus() == .mounted
 }

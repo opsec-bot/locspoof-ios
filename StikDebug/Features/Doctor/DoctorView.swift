@@ -111,6 +111,10 @@ final class ConnectionDoctor: ObservableObject {
 
         // 5. Disk image
         set("ddi", .running)
+        if setupInstallsDiskImage {
+            set("ddi", .ok("iOS 27 or newer: locspoof Setup installs this from a computer. If the location doesn't move, plug in and run Setup again."))
+            return
+        }
         let mount: MountCheckResult = await Task.detached { () -> MountCheckResult in checkMountStatus() }.value
         switch mount {
         case .mounted:
