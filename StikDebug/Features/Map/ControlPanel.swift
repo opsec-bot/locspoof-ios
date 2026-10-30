@@ -178,7 +178,7 @@ struct ControlPanel: View {
             }
 
             if state == .holding {
-                metric(String(format: "%.1f m", stats.wanderMeters), label: "GPS wander")
+                metric("Exact spot", label: "no GPS wander")
                     .frame(maxWidth: .infinity, alignment: .leading)
             } else {
                 HStack(alignment: .bottom, spacing: 0) {

@@ -6,7 +6,7 @@ enum TravelMode: String, Codable, CaseIterable, Identifiable {
     case drive
     case bike
     case walk
-    /// Sit at one point. No route, just a held location with GPS wander.
+    /// Sit at one point. No route, just a held location, exactly on the spot.
     case hold
 
     var id: String { rawValue }
