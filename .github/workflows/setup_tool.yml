@@ -10,6 +10,8 @@ on:
   push:
     branches: [main]
     paths: ['setup-tool/**', '.github/workflows/setup_tool.yml']
+  pull_request:
+    paths: ['setup-tool/**', '.github/workflows/setup_tool.yml']
   workflow_dispatch:
 
 jobs:
