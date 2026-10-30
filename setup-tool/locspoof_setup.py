@@ -3,8 +3,9 @@
 Runs on Windows and macOS. With the iPhone plugged in by cable it:
 
 1. waits for the phone and for "Trust This Computer",
-2. checks locspoof is installed,
-3. turns on Developer Mode (or shows exactly where to tap),
+2. turns on Developer Mode, which has to come first: a cert-signed app such as
+   the FlareStore signer won't even open without it,
+3. waits while locspoof gets installed (the phone can be unplugged meanwhile),
 4. makes a fresh RemotePairing file,
 5. puts it straight into locspoof's Documents folder over the cable.
 
@@ -38,7 +39,7 @@ from pymobiledevice3.services.house_arrest import HouseArrestService
 from pymobiledevice3.services.installation_proxy import InstallationProxyService
 from pymobiledevice3.usbmux import list_devices
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 BUNDLE_ID = "app.locspoof.ios"
 # locspoof's PairingFileStore picks this name up from Documents.
 DROP_NAME = "pairingFile.plist"
@@ -116,41 +117,62 @@ async def wait_for_trust(udid: str):
         await asyncio.sleep(POLL_S)
 
 
-async def wait_for_locspoof(lockdown) -> None:
+async def wait_for_locspoof(lockdown):
     say = Once()
     while True:
-        apps = await InstallationProxyService(lockdown).get_apps(bundle_identifiers=[BUNDLE_ID])
+        try:
+            apps = await InstallationProxyService(lockdown).get_apps(bundle_identifiers=[BUNDLE_ID])
+        except (ConnectionFailedToUsbmuxdError, MuxException, OSError, ConnectionError):
+            # Unplugged while installing locspoof: wait for it to come back.
+            say("Plug the iPhone back in when locspoof is installed.")
+            lockdown = await wait_for_trust(await wait_for_phone())
+            continue
         if BUNDLE_ID in apps:
             version = apps[BUNDLE_ID].get("CFBundleShortVersionString", "?")
             done(f"locspoof {version} is installed.")
-            return
-        say("locspoof isn't on this iPhone yet. Install it with your cert first (guide step 2). "
-            "Leave this window open, it keeps checking.")
+            return lockdown
+        say("Now install locspoof on the iPhone with your $3 cert (guide Part 2). "
+            "You can unplug the iPhone while you do it. Leave this window open, it waits.")
         await asyncio.sleep(3)
 
 
 async def ensure_developer_mode(udid: str, lockdown):
     if await lockdown.get_developer_mode_status():
-        done("Developer Mode is on.")
+        done("Developer Mode is already on.")
         return lockdown
 
-    await AmfiService(lockdown).reveal_developer_mode_option_in_ui()
-    todo("Turn on Developer Mode on the iPhone:")
-    print("       Settings > Privacy & Security > Developer Mode (near the bottom) > turn it on > Restart")
-    print("       After the iPhone restarts and you unlock it, tap \"Turn On\" and enter your passcode.")
-    todo("Waiting for that. Keep the cable plugged in.")
+    amfi = AmfiService(lockdown)
+    try:
+        # Works when the iPhone has no passcode: it restarts and turns itself on.
+        await amfi.enable_developer_mode(enable_post_restart=False)
+        todo("Turning on Developer Mode. The iPhone is restarting, keep it plugged in.")
+        todo("When it's back, unlock it. If it asks about Developer Mode, tap \"Turn On\".")
+    except Exception:
+        # Usually DeviceHasPasscodeSetError: with a passcode, iOS wants the tap
+        # on the phone itself. Make the switch show up and say where it is.
+        await amfi.reveal_developer_mode_option_in_ui()
+        todo("Turn on Developer Mode on the iPhone:")
+        print("       Settings > Privacy & Security > scroll to the bottom > Developer Mode > turn it on > Restart")
+        print("       After the iPhone restarts and you unlock it, tap \"Turn On\" and enter your passcode.")
+        todo("Waiting for that. Keep the cable plugged in.")
 
     while True:
         await asyncio.sleep(3)
         try:
             udid = await wait_for_phone()
             lockdown = await create_using_usbmux(serial=udid, autopair=True)
+            if not await lockdown.get_developer_mode_status():
+                # Answers the "Turn On" prompt after the restart, if iOS lets us.
+                try:
+                    await AmfiService(lockdown).enable_developer_mode_post_restart()
+                except Exception:
+                    pass
             if await lockdown.get_developer_mode_status():
                 done("Developer Mode is on.")
                 return lockdown
         except (PasswordRequiredError, PairingDialogResponsePendingError):
             pass  # still restarting or locked; keep waiting quietly
-        except (ConnectionFailedToUsbmuxdError, MuxException, OSError):
+        except (ConnectionFailedToUsbmuxdError, MuxException, OSError, ConnectionError):
             pass
 
 
@@ -201,11 +223,11 @@ async def main() -> None:
         raise SystemExit(f"This iPhone runs iOS {lockdown.product_version}. locspoof needs iOS 17 or newer.")
     done(f"Connected to {lockdown.short_info.get('DeviceName', 'your iPhone')} (iOS {lockdown.product_version}).")
 
-    title(2, "Check locspoof is installed")
-    await wait_for_locspoof(lockdown)
-
-    title(3, "Developer Mode")
+    title(2, "Developer Mode")
     lockdown = await ensure_developer_mode(udid, lockdown)
+
+    title(3, "Install locspoof")
+    lockdown = await wait_for_locspoof(lockdown)
 
     title(4, "Make the pairing file")
     data = await make_pairing_file(lockdown)
