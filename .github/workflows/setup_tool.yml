@@ -1,0 +1,56 @@
+# Build "locspoof Setup", the one-click iPhone prep tool in setup-tool/, for
+# Windows and macOS. Download the artifacts and attach them to a release.
+#
+# Single-file builds: one thing to download and double-click. Output is line
+# buffered in the script, so nothing looks stuck in a console.
+
+name: Build locspoof Setup
+
+on:
+  push:
+    branches: [main]
+    paths: ['setup-tool/**', '.github/workflows/setup_tool.yml']
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            artifact: locspoof-setup-windows
+          - os: macos-latest
+            artifact: locspoof-setup-mac-apple-silicon
+          - os: macos-15-intel
+            artifact: locspoof-setup-mac-intel
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install
+        run: python -m pip install pymobiledevice3==11.12.1 pyinstaller
+      - name: Build
+        working-directory: setup-tool
+        run: python -m PyInstaller --noconfirm --onefile --console --name locspoof-setup --collect-all pymobiledevice3 --collect-all pytun_pmd3 locspoof_setup.py
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: setup-tool
+        shell: bash
+        run: |
+          mkdir out
+          cp dist/locspoof-setup.exe "out/locspoof-setup.exe"
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        working-directory: setup-tool
+        run: |
+          mkdir out
+          chmod +x dist/locspoof-setup
+          # zip keeps the executable bit, which a bare download would lose.
+          cd dist && zip -q ../out/${{ matrix.artifact }}.zip locspoof-setup
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: setup-tool/out/*
