@@ -77,12 +77,34 @@ enum PairingFileStore {
         try? fileManager.createDirectory(at: directoryURL, withIntermediateDirectories: true)
 
         guard !fileManager.fileExists(atPath: destination.path) else {
-            removeLegacyCopies(fileManager: fileManager)
+            takeDroppedCopy(over: destination, fileManager: fileManager)
             return destination
         }
 
         migrateLegacyCopy(to: destination, fileManager: fileManager)
         return destination
+    }
+
+    /// The locspoof Setup tool on a computer writes a fresh pairing file into
+    /// Documents over the cable. It is always newer than the installed one, so
+    /// it replaces it, as long as it is a valid RemotePairing record. A bad
+    /// file is deleted and the working one is kept.
+    private static func takeDroppedCopy(over destination: URL, fileManager: FileManager) {
+        for legacyURL in legacyURLs where fileManager.fileExists(atPath: legacyURL.path) {
+            defer { try? fileManager.removeItem(at: legacyURL) }
+            guard let data = try? Data(contentsOf: legacyURL), (try? validate(data)) != nil else {
+                LogManager.shared.addInfoLog("Ignored an invalid pairing file in Documents")
+                continue
+            }
+            guard (try? data.write(to: destination, options: .atomic)) != nil else { continue }
+            protectPairingFile(at: destination, fileManager: fileManager)
+            UserDefaults.standard.set(Date(), forKey: UserDefaults.Keys.pairingImportedAt)
+            LogManager.shared.addInfoLog("Replaced the pairing file with the one from locspoof Setup")
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .pairingFileImported, object: nil)
+            }
+            return
+        }
     }
 
     /// Checks the file is a RemotePairing record before anything is replaced,

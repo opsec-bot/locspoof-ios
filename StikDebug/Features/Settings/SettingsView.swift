@@ -168,7 +168,7 @@ struct PairingSection: View {
         } header: {
             Text("Pairing file")
         } footer: {
-            Text("Accepts .plist, .mobiledevicepairing and .mobiledevicepair. You can also tap the file in Files or a chat and open it with locspoof. Make it on the PC with: python -m pymobiledevice3 lockdown remotepairing --pair")
+            Text("Accepts .plist, .mobiledevicepairing and .mobiledevicepair. You can also tap the file in Files or a chat and open it with locspoof. Easiest: run locspoof Setup on a computer with the iPhone plugged in, and it puts the file here for you.")
         }
         .fileImporter(
             isPresented: $showPicker,
