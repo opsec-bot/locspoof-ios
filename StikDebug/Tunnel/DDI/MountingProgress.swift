@@ -17,7 +17,7 @@ final class MountingProgress: ObservableObject {
 
     func checkforMounted() {
         DispatchQueue.global(qos: .utility).async {
-            let mounted = isMounted()
+            let mounted = setupInstallsDiskImage || isMounted()
             DispatchQueue.main.async {
                 self.coolisMounted = mounted
             }
@@ -36,6 +36,10 @@ final class MountingProgress: ObservableObject {
     }
 
     private func mount() {
+        if setupInstallsDiskImage {
+            DispatchQueue.main.async { self.coolisMounted = true }
+            return
+        }
         let currentlyMounted = isMounted()
         DispatchQueue.main.async {
             self.coolisMounted = currentlyMounted
