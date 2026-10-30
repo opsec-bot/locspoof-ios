@@ -96,7 +96,7 @@ FlareStore asks for your iPhone's **UDID** (its ID number) when you buy, so get 
 ### Step 8. Finish setup
 
 1. Plug the iPhone back into the computer. The locspoof Setup window is still open and waiting.
-2. It sees locspoof, makes the pairing file and puts it inside locspoof by itself.
+2. It sees locspoof, makes the pairing file, puts it inside locspoof, and installs Apple's developer disk image. All by itself; the last part needs internet and takes up to a minute.
 
 ✅ The window says **All done.** in green. Unplug the iPhone and close the window.
 
@@ -131,7 +131,7 @@ The connection can only start on Wi-Fi, but it keeps running on cellular.
 
 ## Things to know
 
-- **Restarted your iPhone?** It forgets the pairing on every restart. Plug it in and run locspoof Setup again (Step 3, about a minute). Nothing else needs redoing.
+- **Restarted your iPhone?** It forgets the pairing and the disk image on every restart. Plug it in and run locspoof Setup again (Step 3, about a minute). Nothing else needs redoing.
 - **Certificate expired** (after about a year)? Buy a new one and redo Steps 6 and 7.
 - **Never send anyone your pairing file** or let someone else run locspoof Setup with your phone. It controls your iPhone's developer tools.
 
@@ -145,6 +145,7 @@ The connection can only start on Wi-Fi, but it keeps running on cellular.
 | No Developer Mode switch in Settings | Leave locspoof Setup running with the phone plugged in; it makes the switch appear. |
 | "Now install locspoof on the iPhone" | That's expected: do Part 2, then plug back in. The window keeps waiting. |
 | FlareStore app or locspoof won't open | Developer Mode is off. Plug in and run locspoof Setup (Part 1) first. |
+| locspoof says **DDI Mount Failed** or **BadBuildManifest** | Your iPhone needs the newer disk image (iOS 27 and the newest iPhones). Plug in and run the latest locspoof Setup; it installs it. |
 | locspoof never says Connected | Is LocalDevVPN on? Restarted the phone since setup? Run Setup again. Then use the connection check inside locspoof; it tells you which part failed. |
 
 Still stuck? Ask ChatGPT (or any AI with web access). Paste this and add a screenshot:
