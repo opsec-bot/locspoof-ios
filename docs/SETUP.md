@@ -22,9 +22,13 @@ About 15 minutes. Do the steps in order and don't skip any. After each step ther
 
 ### Step 2. Buy the $3 certificate
 
-1. On the iPhone, open **Safari** (not Chrome) and go to **[flarestore.app](https://flarestore.app/)**.
-2. Buy the **$3 certificate** and follow FlareStore's steps. It installs a small profile so it knows your iPhone; allow it when asked.
-3. Wait until FlareStore says your certificate is ready. This can take a few minutes.
+FlareStore asks for your iPhone's **UDID** (its ID number) when you buy, so get that first.
+
+1. On the iPhone, open **Safari** (not Chrome) and go to **[udid.website](https://udid.website/)**.
+2. Tap the button to get your UDID. It asks to download a profile: tap **Allow**, then open **Settings**, tap **Profile Downloaded** near the top, and tap **Install** (enter your passcode).
+3. Safari comes back and shows your UDID, a long code of letters and numbers. **Copy it.**
+4. Go to **[flarestore.app](https://flarestore.app/)** in Safari and buy the **$3 certificate**. When it asks for your UDID, paste the one you copied.
+5. Wait until FlareStore says your certificate is ready. This can take a few minutes.
 
 ✅ FlareStore shows your certificate as active.
 
