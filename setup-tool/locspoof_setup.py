@@ -39,7 +39,7 @@ from pymobiledevice3.services.house_arrest import HouseArrestService
 from pymobiledevice3.services.installation_proxy import InstallationProxyService
 from pymobiledevice3.usbmux import list_devices
 
-VERSION = "1.1.0"
+VERSION = "1.1.1"
 BUNDLE_ID = "app.locspoof.ios"
 # locspoof's PairingFileStore picks this name up from Documents.
 DROP_NAME = "pairingFile.plist"
