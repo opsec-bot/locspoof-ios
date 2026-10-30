@@ -90,10 +90,13 @@ final class RoutePlayer: ObservableObject {
     }
 
     /// Teleport. Calling again while holding moves the point immediately.
+    /// Teleport: sit exactly on the spot. No GPS wander here; it only makes
+    /// sense while moving along a route.
     func hold(at coordinate: CLLocationCoordinate2D) {
         route = nil
         plan = nil
         pending = []
+        jitter = nil
         anchor = coordinate
         state = .holding
         begin()
@@ -151,7 +154,7 @@ final class RoutePlayer: ObservableObject {
     // MARK: - Loop
 
     private func begin() {
-        if wanderEnabled, jitter == nil {
+        if wanderEnabled, route != nil, jitter == nil {
             jitter = GpsJitter()
         }
         if lease == nil {

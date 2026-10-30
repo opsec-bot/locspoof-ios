@@ -16,7 +16,7 @@ This is the on-device side of [locspoof](https://github.com/opsec-bot/locspoof).
   - It slows down for corners.
   - It sometimes waits at real intersections.
   - You can set a max speed in mph.
-- **GPS wander.** The point drifts a few metres the way real GPS does, so it never sits perfectly still or rides the exact centre of the road.
+- **GPS wander.** While driving, biking or walking, the point drifts a few metres the way real GPS does, so it never rides the exact centre of the road. Teleport stays exactly on the spot.
 - **Finds its own connection port.** iOS picks a new RemotePairing port every time the phone restarts. locspoof finds the new one by itself instead of failing with "connection refused".
 - **Connection check screen.** It checks the pairing file, LocalDevVPN, the port, the tunnel and the developer disk image in order, and tells you which step is broken and how to fix it.
 - **Pairing files are easy to swap.** Replace one in Settings, or tap the file in Files or a chat and open it with locspoof. No reinstall.
