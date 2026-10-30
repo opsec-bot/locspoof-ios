@@ -29,14 +29,16 @@ FlareStore asks for your iPhone's **UDID** (its ID number) when you buy, so get 
 3. Safari comes back and shows your UDID, a long code of letters and numbers. **Copy it.**
 4. Go to **[flarestore.app](https://flarestore.app/)** in Safari and buy the **$3 certificate**. When it asks for your UDID, paste the one you copied.
 5. Wait until FlareStore says your certificate is ready. This can take a few minutes.
+6. On FlareStore's page, enter the same UDID and install the **FlareStore app** from there. It's signed for your iPhone, so it only works on the phone with that UDID. Trust it if asked: **Settings > General > VPN & Device Management**.
 
-✅ FlareStore shows your certificate as active.
+✅ The FlareStore app is on your home screen and shows your certificate as active.
 
 ### Step 3. Install locspoof
 
-1. Still in Safari on the iPhone, open the **[latest locspoof release](https://github.com/opsec-bot/locspoof-ios/releases/latest)** and tap **`locspoof-….ipa`** to download it.
-2. In FlareStore, choose that downloaded `.ipa`, tap **Sign**, then **Install**.
-3. If the iPhone says the developer isn't trusted: **Settings > General > VPN & Device Management**, tap the profile under "Enterprise App", tap **Trust**.
+1. In Safari on the iPhone, open the **[latest locspoof release](https://github.com/opsec-bot/locspoof-ios/releases/latest)** and tap **`locspoof-….ipa`** to download it.
+2. Open the **FlareStore app** and import that downloaded `.ipa` (it's in Files > Downloads).
+3. In FlareStore, tap **Sign**, then **Install**.
+4. If the iPhone says the developer isn't trusted: **Settings > General > VPN & Device Management**, tap the profile, tap **Trust**.
 
 ✅ The locspoof icon is on your home screen and opens.
 
